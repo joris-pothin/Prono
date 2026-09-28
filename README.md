@@ -6,7 +6,7 @@ joueurs.
 
 ## Stack
 
-- **Backend** : Symfony 7.4 + API Platform (REST/JSON-LD) + Doctrine ORM + PostgreSQL,
+- **Backend** : Symfony 8.1 + API Platform (REST/JSON-LD) + Doctrine ORM + PostgreSQL,
   auth par JWT (LexikJWTAuthenticationBundle).
 - **Frontend** : Next.js 16 (App Router) + TypeScript + Tailwind CSS + SWR.
 - **Données F1** : synchronisées depuis [jolpica-f1](https://github.com/jolpica/jolpica-f1)
