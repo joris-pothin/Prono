@@ -1,0 +1,12 @@
+controllers:
+    resource:
+        path: ../src/Controller/
+        namespace: App\Controller
+    type: attribute
+
+# Virtual route: never hits a controller, it's intercepted by the "login" firewall's
+# json_login listener (see config/packages/security.yaml). It still needs to be a real
+# route so the router doesn't 404 before the firewall gets a chance to run.
+app_login_check:
+    path: /api/login_check
+    methods: [POST]
