@@ -32,16 +32,57 @@ joueurs.
   gagné/perdu (gain ou perte de points), le proposant ne votant ni ne résolvant son
   propre pari.
 
-## Démarrage rapide
+## Démarrage rapide (Docker)
+
+```bash
+docker compose up -d --build
+```
+
+Ça suffit : le premier démarrage installe les dépendances PHP/Node à l'intérieur des
+conteneurs (réutilisées si `backend/vendor` ou `frontend/node_modules` existent déjà
+côté hôte), crée la base, joue les migrations et génère la paire de clés JWT tout seul
+(voir `backend/docker/entrypoint.sh` et `frontend/docker/entrypoint.sh`). Le code source
+est monté en bind-mount : toute modification côté hôte est prise en compte
+immédiatement (hot-reload compris pour le frontend), pas besoin de rebuild pour du code
+normal — seul un changement de `Dockerfile` ou de dépendances en nécessite un
+(`docker compose build`).
+
+- Backend : `http://localhost:8000/api`
+- Frontend : `http://localhost:3000`
+- Postgres : `localhost:5433` (le `5432` du hôte n'était pas libre sur la machine de
+  dev d'origine — adapte `docker-compose.yml` si besoin)
+
+Code d'invitation par défaut : `changeme`. Pour le personnaliser, crée un fichier `.env`
+à la racine (lu automatiquement par `docker compose`, jamais commité) avec
+`REGISTRATION_INVITE_CODE=...` avant le premier `up`.
+
+Récupère les données F1 (calendrier, pilotes, écuries, classements, résultats) :
+
+```bash
+docker compose exec backend php bin/console app:f1:sync 2026
+```
+
+Lance les tests backend :
+
+```bash
+docker compose exec backend php bin/console --env=test doctrine:database:create --if-not-exists
+docker compose exec backend php bin/console --env=test doctrine:migrations:migrate --no-interaction
+docker compose exec backend php vendor/bin/phpunit
+```
+
+Logs : `docker compose logs -f backend` / `frontend`. Tout arrêter : `docker compose down`
+(`-v` en plus pour repartir de zéro et effacer aussi la base).
+
+## Démarrage sans Docker
+
+<details>
+<summary>Cliquer pour déplier</summary>
 
 ### 1. Base de données
 
 ```bash
 docker compose up -d database
 ```
-
-Postgres écoute sur `localhost:5433` (le `5432` local n'était pas libre sur cette
-machine — adapte `docker-compose.yml` et `backend/.env` si besoin).
 
 ### 2. Backend
 
@@ -79,8 +120,10 @@ npm install
 npm run dev
 ```
 
-Ouvre `http://localhost:3000`, crée un compte avec le code d'invitation généré
-ci-dessus, et c'est parti.
+</details>
+
+Dans les deux cas : ouvre `http://localhost:3000`, crée un compte avec le code
+d'invitation, et c'est parti.
 
 ## Synchronisation des données F1
 

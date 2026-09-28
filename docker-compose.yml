@@ -16,5 +16,40 @@ services:
       timeout: 5s
       retries: 10
 
+  backend:
+    build:
+      context: ./backend
+    container_name: prono_backend
+    volumes:
+      - ./backend:/app
+    ports:
+      - "8000:8000"
+    environment:
+      APP_ENV: dev
+      # Container-to-container URL: "database" is the service name above, always on its
+      # native port 5432 regardless of the 5433 host mapping used from outside Docker.
+      DATABASE_URL: postgresql://app:app@database:5432/app?serverVersion=16&charset=utf8
+      CORS_ALLOW_ORIGIN: '^https?://(localhost|127\.0\.0\.1)(:[0-9]+)?$$'
+      # Shared code friends need to register — override by setting REGISTRATION_INVITE_CODE
+      # in a root .env file (docker compose reads it automatically) before first `up`.
+      REGISTRATION_INVITE_CODE: ${REGISTRATION_INVITE_CODE:-changeme}
+    depends_on:
+      database:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+    container_name: prono_frontend
+    volumes:
+      - ./frontend:/app
+    ports:
+      - "3000:3000"
+    environment:
+      # Reachable from the host's browser, not from inside the Docker network.
+      NEXT_PUBLIC_API_URL: http://localhost:8000
+    depends_on:
+      - backend
+
 volumes:
   database_data:
