@@ -46,6 +46,19 @@ export interface SeasonEntry {
   raceNumber: number | null;
 }
 
+export interface GpLineupEntry {
+  driver: RefDriver;
+  team: RefTeam;
+  added: boolean;
+}
+
+/** Who races a given Grand Prix: the season entries, adjusted by the players for that weekend. */
+export interface GpLineup {
+  entries: GpLineupEntry[];
+  removed: { driver: RefDriver; team: RefTeam }[];
+  teams: RefTeam[];
+}
+
 export interface SeasonDriverPick {
   driver: RefDriver;
   predictedRank: number;

@@ -8,7 +8,7 @@ use App\Entity\GpPrediction;
 use App\Entity\GrandPrix;
 use App\Entity\User;
 use App\Repository\GpPredictionRepository;
-use App\Repository\SeasonEntryRepository;
+use App\Service\Lineup\GrandPrixLineup;
 use App\Service\Ranking\RankingValidationException;
 use App\Service\Ranking\RankingValidator;
 use Doctrine\ORM\EntityManagerInterface;
@@ -20,7 +20,8 @@ use Symfony\Component\Serializer\SerializerInterface;
 
 /**
  * Writes the authenticated player's prediction for a single Grand Prix weekend: the
- * full race classification, pole, fastest lap, and (if applicable) sprint podium.
+ * full race classification of its lineup (App\Service\Lineup\GrandPrixLineup), pole,
+ * fastest lap, and (if applicable) sprint podium.
  * Locked once FP1 has started (GrandPrix::isLocked()).
  *
  * Body shape:
@@ -36,7 +37,7 @@ final class GpPredictionController
     public function __construct(
         private readonly EntityManagerInterface $entityManager,
         private readonly Security $security,
-        private readonly SeasonEntryRepository $seasonEntryRepository,
+        private readonly GrandPrixLineup $lineup,
         private readonly GpPredictionRepository $gpPredictionRepository,
         private readonly RankingValidator $rankingValidator,
         private readonly SerializerInterface $serializer,
@@ -69,8 +70,7 @@ final class GpPredictionController
             return new JsonResponse(['error' => $error], 400);
         }
 
-        $entries = $this->seasonEntryRepository->findBy(['season' => $gp->getSeason()]);
-        $expectedDriverIds = array_values(array_unique(array_map(static fn ($e) => $e->getDriver()->getId(), $entries)));
+        $expectedDriverIds = $this->lineup->driverIds($gp);
 
         try {
             $this->rankingValidator->validateFullPermutation($rankByDriverId, $expectedDriverIds);
@@ -81,7 +81,7 @@ final class GpPredictionController
         $poleDriverId = (int) $payload['poleDriverId'];
         $fastestLapDriverId = (int) $payload['fastestLapDriverId'];
         if (!\in_array($poleDriverId, $expectedDriverIds, true) || !\in_array($fastestLapDriverId, $expectedDriverIds, true)) {
-            return new JsonResponse(['error' => 'poleDriverId et fastestLapDriverId doivent être des pilotes de la saison.'], 422);
+            return new JsonResponse(['error' => 'poleDriverId et fastestLapDriverId doivent être des pilotes du plateau de ce Grand Prix.'], 422);
         }
 
         $sprintIds = [];
@@ -92,7 +92,7 @@ final class GpPredictionController
                 }
                 $id = (int) $payload[$field];
                 if (!\in_array($id, $expectedDriverIds, true)) {
-                    return new JsonResponse(['error' => \sprintf('"%s" doit être un pilote de la saison.', $field)], 422);
+                    return new JsonResponse(['error' => \sprintf('"%s" doit être un pilote du plateau de ce Grand Prix.', $field)], 422);
                 }
                 $sprintIds[$field] = $id;
             }

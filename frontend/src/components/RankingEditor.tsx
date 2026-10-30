@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 export interface RankableItem {
   id: number;
@@ -16,9 +16,14 @@ interface Props {
   disabled?: boolean;
 }
 
+/** Distance (px) from the viewport edge at which dragging starts auto-scrolling the page. */
+const AUTO_SCROLL_EDGE = 60;
+
 /**
- * A full ranking editor: every item must be placed in a unique position. No drag-and-drop
- * dependency — just up/down/top/bottom controls, which stays fully usable on mobile.
+ * A full ranking editor: every item must be placed in a unique position. Rows can be
+ * dragged (Pointer Events, no dependency: whole row with a mouse, the ⠿ handle on touch so
+ * the page still scrolls normally) and the up/down/top/bottom buttons stay available for
+ * keyboard users and fine adjustments.
  */
 export function RankingEditor({ items, initialOrder, onChange, disabled }: Props) {
   // RankingEditor is only ever mounted by its parent once that parent's own data has
@@ -31,6 +36,76 @@ export function RankingEditor({ items, initialOrder, onChange, disabled }: Props
     onChange(order);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [order]);
+
+  const [dragId, setDragId] = useState<number | null>(null);
+  const rowRefs = useRef(new Map<number, HTMLLIElement>());
+  const orderRef = useRef(order);
+  const pointerY = useRef(0);
+
+  useEffect(() => {
+    orderRef.current = order;
+  }, [order]);
+
+  useEffect(() => {
+    if (dragId === null) return;
+    const draggedId = dragId;
+
+    // The dragged row's new index is the number of other rows whose midpoint sits above
+    // the pointer. Rows are re-read from the DOM each time, so this stays correct while the
+    // page scrolls underneath.
+    function reorder() {
+      const current = orderRef.current;
+      const others = current.filter((id) => id !== draggedId);
+      let index = 0;
+      for (const id of others) {
+        const rect = rowRefs.current.get(id)?.getBoundingClientRect();
+        if (rect && pointerY.current > rect.top + rect.height / 2) index++;
+      }
+      if (current[index] === draggedId) return;
+      setOrder([...others.slice(0, index), draggedId, ...others.slice(index)]);
+    }
+
+    let frame = 0;
+    function autoScroll() {
+      const y = pointerY.current;
+      const bottomEdge = window.innerHeight - AUTO_SCROLL_EDGE;
+      const dy = y < AUTO_SCROLL_EDGE ? -(AUTO_SCROLL_EDGE - y) / 4 : y > bottomEdge ? (y - bottomEdge) / 4 : 0;
+      if (dy !== 0) {
+        window.scrollBy(0, Math.round(dy));
+        reorder();
+      }
+      frame = requestAnimationFrame(autoScroll);
+    }
+    frame = requestAnimationFrame(autoScroll);
+
+    function onMove(e: PointerEvent) {
+      pointerY.current = e.clientY;
+      reorder();
+    }
+    function onEnd() {
+      setDragId(null);
+    }
+
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onEnd);
+    window.addEventListener('pointercancel', onEnd);
+    return () => {
+      cancelAnimationFrame(frame);
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onEnd);
+      window.removeEventListener('pointercancel', onEnd);
+    };
+  }, [dragId]);
+
+  function startDrag(e: React.PointerEvent, id: number) {
+    if (disabled || e.button !== 0) return;
+    const target = e.target as HTMLElement;
+    if (target.closest('button')) return;
+    if (e.pointerType !== 'mouse' && !target.closest('[data-drag-handle]')) return;
+    e.preventDefault();
+    pointerY.current = e.clientY;
+    setDragId(id);
+  }
 
   const byId = new Map(items.map((i) => [i.id, i]));
 
@@ -55,15 +130,34 @@ export function RankingEditor({ items, initialOrder, onChange, disabled }: Props
   }
 
   return (
-    <ol className="flex flex-col gap-1">
+    <ol className="flex flex-col gap-1 select-none">
       {order.map((id, index) => {
         const item = byId.get(id);
         if (!item) return null;
         return (
           <li
             key={id}
-            className="flex items-center gap-3 rounded-md border border-neutral-800 bg-neutral-900 px-3 py-2"
+            ref={(el) => {
+              if (el) rowRefs.current.set(id, el);
+              else rowRefs.current.delete(id);
+            }}
+            onPointerDown={(e) => startDrag(e, id)}
+            className={`flex items-center gap-3 rounded-md border px-3 py-2 transition-colors ${
+              dragId === id
+                ? 'relative z-10 border-red-500 bg-neutral-800 shadow-lg shadow-black/50 cursor-grabbing'
+                : `border-neutral-800 bg-neutral-900 ${disabled ? '' : 'cursor-grab'}`
+            }`}
           >
+            {!disabled && (
+              <span
+                data-drag-handle
+                aria-hidden
+                className="-ml-1 px-1 text-neutral-500 touch-none cursor-grab"
+                title="Glisser pour déplacer"
+              >
+                ⠿
+              </span>
+            )}
             <span className="w-7 shrink-0 text-right font-mono text-neutral-400">{index + 1}</span>
             {item.colorHex && (
               <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: item.colorHex }} />

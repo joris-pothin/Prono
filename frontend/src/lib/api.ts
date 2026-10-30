@@ -1,8 +1,10 @@
 import type {
   CurrentUser,
+  GpLineup,
   GpPrediction,
   GrandPrix,
   LeaderboardRow,
+  RefDriver,
   RiskBet,
   Season,
   SeasonEntry,
@@ -39,7 +41,9 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const token = getToken();
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
-    Accept: 'application/json',
+    // API Platform only serves JSON-LD (Hydra collections expose `member`/`totalItems`);
+    // custom controllers return plain JSON whatever the Accept header.
+    Accept: 'application/ld+json',
     ...(options.headers as Record<string, string> | undefined),
   };
   if (token) {
@@ -113,6 +117,31 @@ export async function fetchGrandPrix(seasonId: number): Promise<GrandPrix[]> {
 
 export async function fetchSeasonEntries(seasonId: number): Promise<SeasonEntry[]> {
   return collection<SeasonEntry>(`/api/season_entries?season=${seasonId}&itemsPerPage=50`);
+}
+
+export async function fetchDrivers(): Promise<RefDriver[]> {
+  return collection<RefDriver>('/api/drivers?itemsPerPage=500');
+}
+
+// --- Grand Prix lineup ---
+
+export async function fetchGpLineup(grandPrixId: number): Promise<GpLineup> {
+  return request<GpLineup>(`/api/grand-prix/${grandPrixId}/lineup`);
+}
+
+export type AddLineupDriverPayload =
+  | { driverId: number; teamId?: number }
+  | { newDriver: { firstName: string; lastName: string; code: string; number?: number }; teamId: number };
+
+export async function addGpLineupDriver(grandPrixId: number, payload: AddLineupDriverPayload): Promise<GpLineup> {
+  return request<GpLineup>(`/api/grand-prix/${grandPrixId}/lineup`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function removeGpLineupDriver(grandPrixId: number, driverId: number): Promise<GpLineup> {
+  return request<GpLineup>(`/api/grand-prix/${grandPrixId}/lineup/${driverId}`, { method: 'DELETE' });
 }
 
 // --- Predictions ---

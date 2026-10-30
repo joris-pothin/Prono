@@ -15,6 +15,15 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 async function meFetcher(): Promise<CurrentUser | null> {
+  // Checked inside the fetcher (not via a conditional SWR key) so the key stays stable
+  // ('me', always) — a stable key is what makes the bound `mutate` below reliable right
+  // after login/logout. A conditional key computed at render time would still reflect
+  // the *previous* render's token when login() calls mutate() synchronously after
+  // setToken(), making that mutate silently target the wrong (null) key and appear to
+  // not persist the session until some unrelated re-render happened to catch up.
+  if (!getToken()) {
+    return null;
+  }
   try {
     return await fetchMe();
   } catch {
@@ -24,10 +33,7 @@ async function meFetcher(): Promise<CurrentUser | null> {
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  // Reading localStorage directly in render (not in an effect) keeps this a plain
-  // synchronous key computation for SWR, which owns the actual fetch/subscribe lifecycle.
-  const hasToken = getToken() !== null;
-  const { data, isLoading, mutate } = useSWR<CurrentUser | null>(hasToken ? 'me' : null, meFetcher, {
+  const { data, isLoading, mutate } = useSWR<CurrentUser | null>('me', meFetcher, {
     revalidateOnFocus: false,
     shouldRetryOnError: false,
   });
@@ -49,7 +55,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const value: AuthContextValue = {
     user: data ?? null,
-    loading: hasToken && isLoading,
+    loading: isLoading,
     login,
     logout,
   };

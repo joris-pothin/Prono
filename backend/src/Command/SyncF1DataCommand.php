@@ -144,11 +144,15 @@ final class SyncF1DataCommand extends Command
         $drivers = $data['MRData']['DriverTable']['Drivers'] ?? [];
 
         foreach ($drivers as $d) {
+            $code = $d['code'] ?? strtoupper(substr($d['familyName'] ?? $d['driverId'], 0, 3));
+            // A stand-in a player added by hand to a Grand Prix lineup has no externalRef yet:
+            // adopt him by code rather than creating a duplicate the results would point to.
             $driver = $this->entityManager->getRepository(Driver::class)->findOneBy(['externalRef' => $d['driverId']])
+                ?? $this->entityManager->getRepository(Driver::class)->findOneBy(['externalRef' => null, 'code' => $code])
                 ?? new Driver();
 
             $driver->setExternalRef($d['driverId']);
-            $driver->setCode($d['code'] ?? strtoupper(substr($d['familyName'] ?? $d['driverId'], 0, 3)));
+            $driver->setCode($code);
             $driver->setNumber(isset($d['permanentNumber']) ? (int) $d['permanentNumber'] : null);
             $driver->setFirstName($d['givenName'] ?? '');
             $driver->setLastName($d['familyName'] ?? $d['driverId']);
