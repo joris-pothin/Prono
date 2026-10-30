@@ -24,14 +24,14 @@ function GpListContent() {
             <li key={gp.id}>
               <Link
                 href={`/gp/${gp.id}`}
-                className="flex items-center justify-between gap-3 rounded-md border border-neutral-800 bg-neutral-900 px-4 py-3 hover:border-neutral-600"
+                className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-3 rounded-md border border-neutral-800 bg-neutral-900 px-4 py-3 hover:border-neutral-600"
               >
-                <div>
+                <div className="min-w-0">
                   <span className="text-neutral-500 font-mono text-sm mr-2">R{gp.round}</span>
                   <span className="font-medium">{gp.name}</span>
                   {gp.hasSprint && <span className="ml-2 text-xs px-1.5 py-0.5 rounded bg-neutral-800 text-neutral-300">sprint</span>}
                 </div>
-                <span className={`text-sm ${locked ? 'text-neutral-500' : 'text-emerald-400'}`}>
+                <span className={`text-sm sm:shrink-0 ${locked ? 'text-neutral-500' : 'text-emerald-400'}`}>
                   {locked ? `clos le ${formatDeadline(gp.fp1At)}` : `ouvert jusqu'au ${formatDeadline(gp.fp1At)}`}
                 </span>
               </Link>

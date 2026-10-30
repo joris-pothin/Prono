@@ -15,13 +15,16 @@ function LeaderboardContent() {
   return (
     <div className="flex flex-col gap-4">
       <h1 className="text-xl font-bold">Classement joueurs — saison {season.year}</h1>
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto -mx-4 px-4">
         <table className="w-full text-sm border-collapse">
           <thead>
             <tr className="text-left text-neutral-400 border-b border-neutral-800">
               <th className="py-2 pr-3">#</th>
               <th className="py-2 pr-3">Joueur</th>
-              <th className="py-2 pr-3 text-right">Grands Prix</th>
+              <th className="py-2 pr-3 text-right">
+                <span className="sm:hidden">GP</span>
+                <span className="hidden sm:inline">Grands Prix</span>
+              </th>
               <th className="py-2 pr-3 text-right">Saison</th>
               <th className="py-2 pr-3 text-right">Risque</th>
               <th className="py-2 pr-3 text-right font-semibold">Total</th>
@@ -31,7 +34,7 @@ function LeaderboardContent() {
             {(rows ?? []).map((row, i) => (
               <tr key={row.user.id} className="border-b border-neutral-900">
                 <td className="py-2 pr-3 text-neutral-500">{i + 1}</td>
-                <td className="py-2 pr-3 font-medium">{row.user.displayName}</td>
+                <td className="py-2 pr-3 font-medium max-w-[9rem] sm:max-w-none truncate">{row.user.displayName}</td>
                 <td className="py-2 pr-3 text-right font-mono">{row.gpPoints}</td>
                 <td className="py-2 pr-3 text-right font-mono">{row.seasonPoints}</td>
                 <td className="py-2 pr-3 text-right font-mono">{row.riskPoints}</td>

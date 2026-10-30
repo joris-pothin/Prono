@@ -83,7 +83,7 @@ function RiskBetsContent({ season }: { season: Season }) {
                 </p>
               )}
 
-              <div className="flex items-center gap-2 mt-3">
+              <div className="flex flex-wrap items-center gap-2 mt-3">
                 {bet.status === 'pending' && !isProposer && !myVote && (
                   <>
                     <button
@@ -188,7 +188,7 @@ function ProposeForm({ seasonId, onProposed }: { seasonId: number; onProposed: (
         className="rounded-md bg-neutral-800 border border-neutral-700 px-3 py-2 outline-none focus:border-red-500"
         rows={2}
       />
-      <div className="flex gap-3">
+      <div className="flex flex-col sm:flex-row gap-3">
         <label className="flex flex-col gap-1 flex-1">
           <span className="text-sm text-neutral-400">Points si gagné</span>
           <input

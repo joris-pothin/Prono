@@ -18,12 +18,16 @@ interface Props {
 
 /** Distance (px) from the viewport edge at which dragging starts auto-scrolling the page. */
 const AUTO_SCROLL_EDGE = 60;
+/** On touch, how long a finger must rest on a row to pick it up… */
+const LONG_PRESS_MS = 250;
+/** …without moving further than this (px) — otherwise it's a scroll. */
+const LONG_PRESS_TOLERANCE = 8;
 
 /**
- * A full ranking editor: every item must be placed in a unique position. Rows can be
- * dragged (Pointer Events, no dependency: whole row with a mouse, the ⠿ handle on touch so
- * the page still scrolls normally) and the up/down/top/bottom buttons stay available for
- * keyboard users and fine adjustments.
+ * A full ranking editor: every item must be placed in a unique position. Whole rows can be
+ * dragged (Pointer Events, no dependency): straight away with a mouse, after a short press
+ * on touch so a quick swipe over the list still scrolls the page. The up/down/top/bottom
+ * buttons stay available for keyboard users and fine adjustments.
  */
 export function RankingEditor({ items, initialOrder, onChange, disabled }: Props) {
   // RankingEditor is only ever mounted by its parent once that parent's own data has
@@ -41,6 +45,7 @@ export function RankingEditor({ items, initialOrder, onChange, disabled }: Props
   const rowRefs = useRef(new Map<number, HTMLLIElement>());
   const orderRef = useRef(order);
   const pointerY = useRef(0);
+  const press = useRef<{ timer: number; startX: number; startY: number } | null>(null);
 
   useEffect(() => {
     orderRef.current = order;
@@ -85,26 +90,68 @@ export function RankingEditor({ items, initialOrder, onChange, disabled }: Props
     function onEnd() {
       setDragId(null);
     }
+    // Once a row is picked up by touch, the finger drags it instead of scrolling the page.
+    function preventScroll(e: TouchEvent) {
+      e.preventDefault();
+    }
 
+    window.addEventListener('touchmove', preventScroll, { passive: false });
     window.addEventListener('pointermove', onMove);
     window.addEventListener('pointerup', onEnd);
     window.addEventListener('pointercancel', onEnd);
     return () => {
       cancelAnimationFrame(frame);
+      window.removeEventListener('touchmove', preventScroll);
       window.removeEventListener('pointermove', onMove);
       window.removeEventListener('pointerup', onEnd);
       window.removeEventListener('pointercancel', onEnd);
     };
   }, [dragId]);
 
+  function cancelPress() {
+    if (press.current) {
+      window.clearTimeout(press.current.timer);
+      press.current = null;
+    }
+  }
+
+  // Don't let a pending long-press fire on an unmounted editor.
+  useEffect(
+    () => () => {
+      if (press.current) window.clearTimeout(press.current.timer);
+    },
+    [],
+  );
+
   function startDrag(e: React.PointerEvent, id: number) {
     if (disabled || e.button !== 0) return;
-    const target = e.target as HTMLElement;
-    if (target.closest('button')) return;
-    if (e.pointerType !== 'mouse' && !target.closest('[data-drag-handle]')) return;
-    e.preventDefault();
+    if ((e.target as HTMLElement).closest('button')) return;
     pointerY.current = e.clientY;
-    setDragId(id);
+
+    if (e.pointerType === 'mouse') {
+      e.preventDefault();
+      setDragId(id);
+      return;
+    }
+
+    cancelPress();
+    press.current = {
+      startX: e.clientX,
+      startY: e.clientY,
+      timer: window.setTimeout(() => {
+        press.current = null;
+        navigator.vibrate?.(10);
+        setDragId(id);
+      }, LONG_PRESS_MS),
+    };
+  }
+
+  function trackPress(e: React.PointerEvent) {
+    if (!press.current) return;
+    pointerY.current = e.clientY;
+    if (Math.hypot(e.clientX - press.current.startX, e.clientY - press.current.startY) > LONG_PRESS_TOLERANCE) {
+      cancelPress();
+    }
   }
 
   const byId = new Map(items.map((i) => [i.id, i]));
@@ -142,23 +189,24 @@ export function RankingEditor({ items, initialOrder, onChange, disabled }: Props
               else rowRefs.current.delete(id);
             }}
             onPointerDown={(e) => startDrag(e, id)}
-            className={`flex items-center gap-3 rounded-md border px-3 py-2 transition-colors ${
+            onPointerMove={trackPress}
+            onPointerUp={cancelPress}
+            onPointerCancel={cancelPress}
+            onContextMenu={(e) => {
+              if (!disabled) e.preventDefault();
+            }}
+            className={`flex items-center gap-2 sm:gap-3 rounded-md border px-2 sm:px-3 py-2 transition-[colors,transform] [-webkit-touch-callout:none] ${
               dragId === id
-                ? 'relative z-10 border-red-500 bg-neutral-800 shadow-lg shadow-black/50 cursor-grabbing'
+                ? 'relative z-10 scale-[1.02] border-red-500 bg-neutral-800 shadow-lg shadow-black/50 cursor-grabbing'
                 : `border-neutral-800 bg-neutral-900 ${disabled ? '' : 'cursor-grab'}`
             }`}
           >
             {!disabled && (
-              <span
-                data-drag-handle
-                aria-hidden
-                className="-ml-1 px-1 text-neutral-500 touch-none cursor-grab"
-                title="Glisser pour déplacer"
-              >
+              <span aria-hidden className="text-neutral-500" title="Glisser pour déplacer">
                 ⠿
               </span>
             )}
-            <span className="w-7 shrink-0 text-right font-mono text-neutral-400">{index + 1}</span>
+            <span className="w-6 sm:w-7 shrink-0 text-right font-mono text-neutral-400">{index + 1}</span>
             {item.colorHex && (
               <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: item.colorHex }} />
             )}
@@ -171,7 +219,7 @@ export function RankingEditor({ items, initialOrder, onChange, disabled }: Props
                 type="button"
                 disabled={disabled || index === 0}
                 onClick={() => moveToEnd(index, true)}
-                className="px-1.5 py-1 rounded text-xs border border-neutral-700 disabled:opacity-30 hover:bg-neutral-800"
+                className="hidden sm:inline-block px-1.5 py-1 rounded text-xs border border-neutral-700 disabled:opacity-30 hover:bg-neutral-800"
                 title="Monter en tête"
               >
                 ⤒
@@ -180,7 +228,7 @@ export function RankingEditor({ items, initialOrder, onChange, disabled }: Props
                 type="button"
                 disabled={disabled || index === 0}
                 onClick={() => move(index, -1)}
-                className="px-1.5 py-1 rounded text-xs border border-neutral-700 disabled:opacity-30 hover:bg-neutral-800"
+                className="px-2.5 py-1.5 sm:px-1.5 sm:py-1 rounded text-xs border border-neutral-700 disabled:opacity-30 hover:bg-neutral-800"
                 title="Monter"
               >
                 ↑
@@ -189,7 +237,7 @@ export function RankingEditor({ items, initialOrder, onChange, disabled }: Props
                 type="button"
                 disabled={disabled || index === order.length - 1}
                 onClick={() => move(index, 1)}
-                className="px-1.5 py-1 rounded text-xs border border-neutral-700 disabled:opacity-30 hover:bg-neutral-800"
+                className="px-2.5 py-1.5 sm:px-1.5 sm:py-1 rounded text-xs border border-neutral-700 disabled:opacity-30 hover:bg-neutral-800"
                 title="Descendre"
               >
                 ↓
@@ -198,7 +246,7 @@ export function RankingEditor({ items, initialOrder, onChange, disabled }: Props
                 type="button"
                 disabled={disabled || index === order.length - 1}
                 onClick={() => moveToEnd(index, false)}
-                className="px-1.5 py-1 rounded text-xs border border-neutral-700 disabled:opacity-30 hover:bg-neutral-800"
+                className="hidden sm:inline-block px-1.5 py-1 rounded text-xs border border-neutral-700 disabled:opacity-30 hover:bg-neutral-800"
                 title="Descendre en bas"
               >
                 ⤓
